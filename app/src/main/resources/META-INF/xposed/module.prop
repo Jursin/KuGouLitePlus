@@ -1,0 +1,7 @@
+name=酷狗概念版+
+description=酷狗概念版 3.4.9 自动领取 VIP、去广告
+author=Jursin
+source=https://github.com/Jursin/KuGouLitePlus
+minApiVersion=102
+targetApiVersion=102
+staticScope=true

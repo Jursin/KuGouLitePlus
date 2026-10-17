@@ -1,0 +1,56 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+plugins {
+    id 'com.android.application'
+}
+
+def ksPropsFile = rootProject.file('keystore.properties')
+def ksProps = new Properties()
+def hasReleaseKey = ksPropsFile.exists()
+if (hasReleaseKey) ksPropsFile.withInputStream { ksProps.load(it) }
+
+android {
+    namespace 'com.kugoulite.plus'
+    compileSdk 37
+
+    defaultConfig {
+        applicationId "com.kugoulite.plus"
+        minSdk 27
+        targetSdk 37
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        if (hasReleaseKey) {
+            release {
+                storeFile rootProject.file(ksProps['storeFile'])
+                storePassword ksProps['storePassword']
+                keyAlias ksProps['keyAlias']
+                keyPassword ksProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig hasReleaseKey ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+kotlin {
+    compilerOptions { jvmTarget = JvmTarget.JVM_21 }
+}
+
+dependencies {
+    compileOnly 'io.github.libxposed:api:102.0.0'
+}
