@@ -27,9 +27,9 @@ object KugouApi {
         fun describe(): String {
             if (ok) return "成功"
             val hint = when (code) {
-                EC_ALREADY -> "今日已领取"
+                EC_ALREADY -> "已发放/已领取"
                 130011 -> "今日无听歌记录"
-                20028 -> "账号风控，需手动领取"
+                20028 -> "触发验证码风控，需手动领取"
                 else -> ""
             }
             return "ec=$code " + message.ifEmpty { hint.ifEmpty { "无错误描述" } }
@@ -51,28 +51,14 @@ object KugouApi {
         return !p["token"].isNullOrEmpty() && (p["userid"] ?: "0") != "0"
     }
 
-    // 听歌任务状态：3 = 今日已领取，0/1/2 = 未领取，-1 = 任务不存在
+    // 今日领取次数 > 0 即已领取
     fun claimedOnServer(cl: ClassLoader): Boolean {
         val p = params(cl, mapOf("get_stats" to "1"), "") ?: return false
         val resp = request("GET", "$BASE/youth/v1/activity/get_listen_song_task", p, null) ?: return false
         return try {
-            val j = JSONObject(resp)
-            val data = j.optJSONObject("data")
-            when {
-                j.optInt("status") != 1 -> {
-                    ModuleLog.log("任务状态异常: status=${j.optInt("status")} ec=${j.optInt("error_code")} msg=${j.optString("error_msg")}")
-                    false
-                }
-                data?.has("task_stat") != true -> {
-                    ModuleLog.log("任务状态: 无 task_stat, data=${j.optString("data").take(200)}")
-                    false
-                }
-                else -> {
-                    val stat = data.optInt("task_stat")
-                    ModuleLog.log("任务状态: task_stat=$stat, receive_total=${data.optInt("receive_total")}")
-                    stat == 3
-                }
-            }
+            val data = JSONObject(resp).optJSONObject("data")
+            ModuleLog.log("任务状态: $data")
+            (data?.optInt("receive_total") ?: 0) > 0
         } catch (e: Exception) {
             ModuleLog.log("任务状态解析失败: $e")
             false
@@ -81,6 +67,7 @@ object KugouApi {
 
     fun claimVip(cl: ClassLoader) = post(cl, "/youth/v1/recharge/receive_vip_listen_song", null)
 
+    // 上报听歌
     fun reportListenSong(cl: ClassLoader) = post(cl, "/youth/v2/report/listen_song", "{\"mixsongid\":$MIX_SONG_ID}")
 
     private fun post(cl: ClassLoader, path: String, body: String?): Result {
