@@ -15,7 +15,7 @@ object NetHook {
         "pangle.io", "pangle.cn", "openadsdk",
         "pglstatp-toutiao.com", "pangolin-sdk-toutiao.com",
         "toutiao.com", "toutiaoimg.com", "snssdk.com", "ctobsnssdk.com",
-        "ads.gateway", // 酷狗自家广告网关，不能写 gateway.kugou.com 整域
+        "ads.service.kugou.com", // 酷狗自家广告上报
     )
 
     private fun isAd(url: String) = AD_HOSTS.any { url.contains(it, ignoreCase = true) }

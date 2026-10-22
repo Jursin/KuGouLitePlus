@@ -17,42 +17,27 @@ object IntegrityBypass {
 
     fun install(xposed: XposedModule) {
         var n = 0
-        if (hookGpi(xposed, arrayOf(String::class.java, Int::class.javaPrimitiveType))) n++
-        try {
-            if (hookGpi(xposed, arrayOf(String::class.java, Class.forName(FLAGS)))) n++
-        } catch (_: Throwable) {}
-        n += hookCurrent(xposed)
+        for (pt in paramTypes()) {
+            n += hookGpi(xposed, "getPackageInfo", pt)
+            n += hookGpi(xposed, "getCurrentPackageInfo", pt)
+        }
         n += hookInstalled(xposed)
         ModuleLog.log("防检测安装: $n 个重载")
     }
 
-    @SuppressLint("PrivateApi")
-    private fun hookGpi(xposed: XposedModule, pt: Array<Class<*>?>): Boolean {
-        return try {
-            val m = Reflector.findMethod(Class.forName(PM), "getPackageInfo", *pt) ?: return false
-            xposed.hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                .intercept { chain -> val r = chain.proceed(); stabilize(r); r }
-            true
-        } catch (_: Exception) { false }
-    }
+    private fun paramTypes() = listOfNotNull(
+        arrayOf<Class<*>>(String::class.java, Int::class.javaPrimitiveType!!),
+        try { arrayOf<Class<*>>(String::class.java, Class.forName(FLAGS)) } catch (_: Throwable) { null }
+    )
 
     @SuppressLint("PrivateApi")
-    private fun hookCurrent(xposed: XposedModule): Int {
-        var ok = 0
-        val sets = listOf(
-            arrayOf<Class<*>>(String::class.java, Int::class.javaPrimitiveType!!),
-            try { arrayOf<Class<*>>(String::class.java, Class.forName(FLAGS)) } catch (_: Throwable) { return 0
-            }
-        )
-        for (pt in sets) {
-            try {
-                val m = Reflector.findMethod(Class.forName(PM), "getCurrentPackageInfo", *pt) ?: continue
-                xposed.hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept { chain -> val r = chain.proceed(); stabilize(r); r }
-                ok++
-            } catch (_: Throwable) {}
-        }
-        return ok
+    private fun hookGpi(xposed: XposedModule, name: String, pt: Array<Class<*>>): Int {
+        return try {
+            val m = Reflector.findMethod(Class.forName(PM), name, *pt) ?: return 0
+            xposed.hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept { chain -> val r = chain.proceed(); stabilize(r); r }
+            1
+        } catch (_: Exception) { 0 }
     }
 
     @SuppressLint("PrivateApi")

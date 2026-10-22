@@ -25,17 +25,23 @@ object VipClaim {
     }
 
     // 未登录不发任何请求，本地轮询直到登录后再开始领取
-    private fun awaitLogin(ctx: Context, cl: ClassLoader): Any {
-        if (KugouApi.isClaimedToday(ctx)) return ModuleLog.log("本地标记今日已领取，跳过")
-        if (!KugouApi.isLoggedIn(cl)) return main.postDelayed({ awaitLogin(ctx, cl) }, 5000)
-        return Thread { claim(ctx, cl) }.start()
+    private fun awaitLogin(ctx: Context, cl: ClassLoader) {
+        if (KugouApi.isClaimedToday(ctx)) {
+            ModuleLog.log("本地标记今日已领取，跳过")
+            return
+        }
+        if (!KugouApi.isLoggedIn(cl)) {
+            main.postDelayed({ awaitLogin(ctx, cl) }, 5000)
+            return
+        }
+        Thread { claim(ctx, cl) }.start()
     }
 
     private fun claim(ctx: Context, cl: ClassLoader) {
         try {
             if (KugouApi.claimedOnServer(cl)) {
+                ModuleLog.log("服务器已领取，补写本地标记")
                 KugouApi.markClaimed(ctx)
-                toast(ctx, "今日会员已领取")
                 return
             }
 
@@ -52,7 +58,8 @@ object VipClaim {
             }
 
             KugouApi.markClaimed(ctx)
-            toast(ctx, "已领取今日会员")
+            // Toast 只能在主线程弹
+            main.post { Toast.makeText(ctx, "已领取今日会员", Toast.LENGTH_SHORT).show() }
         } catch (e: Exception) {
             ModuleLog.log("领取异常: $e")
             retry(ctx, cl, "领取异常")
@@ -63,10 +70,5 @@ object VipClaim {
         if (retries++ >= MAX_RETRY) return ModuleLog.log("$reason，重试 $MAX_RETRY 次仍失败，本次启动放弃")
         ModuleLog.log("$reason，3 秒后重试 (第 $retries 次)")
         main.postDelayed({ awaitLogin(ctx, cl) }, RETRY_DELAY)
-    }
-
-    // Toast 只能在主线程弹
-    private fun toast(ctx: Context, msg: String) {
-        main.post { Toast.makeText(ctx.applicationContext, msg, Toast.LENGTH_SHORT).show() }
     }
 }

@@ -16,7 +16,6 @@ object UiHook {
     // 3.4.9 已知广告视图类
     private val AD_CLASSES = setOf(
         "com.kugou.android.app.boot.gdt.GdtAdFrame",
-        "com.kugou.android.app.player.view.PlayerAdMaskView",
         "com.kugou.android.app.player.comment.views.CmtDynamicAdsView",
     )
 
@@ -54,6 +53,7 @@ object UiHook {
     )
 
     @Volatile private var installed = false
+    @Volatile private var adsInstalled = false
     @Volatile private var hidden = 0
 
     fun install(xposed: XposedModule, cl: ClassLoader) {
@@ -64,6 +64,32 @@ object UiHook {
         hookWmAddView(xposed, cl)
         hookActivityStart(xposed)
         hookPopupWindow(xposed, cl)
+    }
+
+    // 广告位总开关：d(pos) 返回 -1 才会出广告，其它值即被拦下
+    // AdsCenterMgr 在 secondary dex，Application.onCreate 之后才能加载
+
+    fun installAdsCenter(xposed: XposedModule, cl: ClassLoader) {
+        if (adsInstalled) return
+        adsInstalled = true
+        hookAdsCenter(xposed, cl)
+    }
+
+    private fun hookAdsCenter(xposed: XposedModule, cl: ClassLoader) {
+        try {
+            val cls = Class.forName("com.kugou.android.app.ads.AdsCenterMgr", false, cl)
+            val m = Reflector.findMethod(cls, "d", String::class.java)
+                ?: return ModuleLog.log("广告位开关未找到")
+            xposed.hook(m)
+                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept { chain ->
+                    val r = (chain.proceed() as? Int) ?: 0
+                    if (r >= 0) return@intercept r
+                    if (hidden < 10) { hidden++; ModuleLog.log("广告位拦截: ${chain.getArg(0)}") }
+                    1
+                }
+            ModuleLog.log("广告位开关拦截安装完成")
+        } catch (t: Throwable) { ModuleLog.log("广告位开关 Hook 失败: $t") }
     }
 
     // 广告视图出生拦截

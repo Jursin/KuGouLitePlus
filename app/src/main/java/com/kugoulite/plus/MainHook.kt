@@ -32,8 +32,7 @@ class MainHook : XposedModule() {
 
     private fun hookAppCreate(cl: ClassLoader) {
         try {
-            val m = Class.forName("android.app.Application", false, cl)
-                .getDeclaredMethod("onCreate")
+            val m = android.app.Application::class.java.getDeclaredMethod("onCreate")
             hook(m)
                 .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept { chain ->
@@ -41,6 +40,7 @@ class MainHook : XposedModule() {
                     try {
                         val ctx = chain.thisObject as Context
                         ModuleLog.init(ctx)
+                        UiHook.installAdsCenter(this@MainHook, cl)
                         VipClaim.start(ctx, cl)
                     } catch (e: Exception) {
                         ModuleLog.log("启动失败: $e")
